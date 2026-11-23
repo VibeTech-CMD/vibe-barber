@@ -16,12 +16,13 @@ export function Button({
   ...props
 }: ButtonProps) {
   const variants: Record<NonNullable<ButtonProps['variant']>, string> = {
-    primary: 'bg-gold text-deep hover:bg-gold-light font-semibold shadow-sm shadow-gold/20',
-    secondary: 'bg-surface2 text-ink hover:bg-surface2/80 border border-white/10',
-    outline: 'bg-transparent text-ink border border-white/15 hover:bg-surface2',
+    primary:
+      'btn-sheen bg-gradient-to-r from-amber-300 via-gold to-amber-500 text-deep hover:brightness-110 font-bold shadow-lg shadow-gold/25',
+    secondary: 'bg-surface2/90 text-ink hover:bg-surface2 border border-white/15 backdrop-blur-md',
+    outline: 'bg-white/[0.03] text-ink border border-white/15 hover:border-gold/50 hover:bg-gold/10 backdrop-blur-sm',
     ghost: 'bg-transparent text-ink-muted hover:text-ink hover:bg-white/5',
-    confirm: 'bg-confirm text-deep hover:brightness-110 font-semibold',
-    info: 'bg-info text-deep hover:brightness-110 font-semibold',
+    confirm: 'bg-gradient-to-r from-emerald-400 to-confirm text-deep hover:brightness-110 font-bold shadow-md shadow-confirm/20',
+    info: 'bg-gradient-to-r from-sky-300 to-info text-deep hover:brightness-110 font-bold shadow-md shadow-info/20',
     danger: 'bg-alert/15 text-red-300 border border-alert/35 hover:bg-alert/25',
   };
   const sizes: Record<NonNullable<ButtonProps['size']>, string> = {
@@ -52,7 +53,7 @@ export function Card({
   return (
     <div
       className={cn(
-        'bg-surface border border-white/[0.08] rounded-2xl p-5 shadow-lg shadow-black/25',
+        'vibe-glass border border-white/[0.09] rounded-2xl p-5 shadow-xl shadow-black/40 transition-all duration-200 hover:border-gold/30',
         className
       )}
       {...props}

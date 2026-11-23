@@ -4,13 +4,205 @@
 
 @layer base {
   html {
-    background-color: #0b0d10;
+    background-color: #07080b;
     color: #f5f5f5;
     font-family: 'Inter', 'Manrope', system-ui, sans-serif;
+    scroll-behavior: smooth;
   }
 
   body {
     overflow-x: hidden;
+    background-color: #07080b;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 15% -5%, rgba(232, 176, 75, 0.16), transparent 55%),
+      radial-gradient(ellipse 60% 45% at 90% 10%, rgba(180, 83, 9, 0.14), transparent 55%),
+      radial-gradient(ellipse 55% 40% at 80% 85%, rgba(56, 189, 248, 0.08), transparent 60%),
+      radial-gradient(ellipse 50% 40% at 10% 90%, rgba(139, 92, 246, 0.07), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  /* Hide native cursor on desktop when ScissorCursor is active */
+  body.scissor-cursor-active,
+  body.scissor-cursor-active * {
+    cursor: none !important;
+  }
+}
+
+/* Subtle architectural underground grid overlay */
+.bg-vibe-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+/* Rich multi-stop gold/amber headline gradient */
+.text-gold-gradient {
+  background: linear-gradient(120deg, #fff4cc 0%, #f5cb76 32%, #e8b04b 62%, #d97706 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Luxury glass card with ambient gradient sheen */
+.vibe-glass {
+  background: linear-gradient(
+    145deg,
+    rgba(28, 33, 44, 0.82) 0%,
+    rgba(16, 19, 26, 0.88) 55%,
+    rgba(232, 176, 75, 0.06) 100%
+  );
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* Animated modern underground barber-pole accent bar */
+.barber-pole-strip {
+  height: 3px;
+  background: repeating-linear-gradient(
+    -45deg,
+    #e8b04b 0px,
+    #e8b04b 14px,
+    #0b0d10 14px,
+    #0b0d10 22px,
+    #f97316 22px,
+    #f97316 32px,
+    #0b0d10 32px,
+    #0b0d10 40px,
+    #38bdf8 40px,
+    #38bdf8 50px,
+    #0b0d10 50px,
+    #0b0d10 58px
+  );
+  background-size: 200% 100%;
+  animation: barberPoleMove 14s linear infinite;
+}
+
+@keyframes barberPoleMove {
+  from {
+    background-position: 0% 0%;
+  }
+  to {
+    background-position: 200% 0%;
+  }
+}
+
+/* Metallic sheen sweep on primary gold buttons */
+.btn-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-sheen::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    110deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.42) 50%,
+    transparent 100%
+  );
+  transform: skewX(-20deg);
+  transition: left 0.6s ease;
+}
+
+.btn-sheen:hover::after {
+  left: 150%;
+}
+
+/* Infinite horizontal marquee ticker */
+.marquee-wrap {
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 8%, black 92%, transparent);
+}
+
+.marquee-track {
+  display: flex;
+  width: max-content;
+  gap: 2.5rem;
+  animation: marqueeScroll 28s linear infinite;
+}
+
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+@keyframes marqueeScroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Scissor click snip burst animation */
+.snip-burst {
+  transform: translate(-50%, -50%);
+}
+
+.snip-ring {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  border: 2px solid #f5cb76;
+  transform: translate(-50%, -50%) scale(0.4);
+  animation: snipRing 0.38s ease-out forwards;
+}
+
+.snip-line {
+  position: absolute;
+  width: 18px;
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #fff3c4, #e8b04b, transparent);
+  transform-origin: left center;
+}
+
+.snip-line-1 {
+  animation: snipSlash1 0.34s ease-out forwards;
+}
+
+.snip-line-2 {
+  animation: snipSlash2 0.34s ease-out forwards;
+}
+
+@keyframes snipRing {
+  0% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(3.2);
+  }
+}
+
+@keyframes snipSlash1 {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(-35deg) scaleX(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(10px, -10px) rotate(-35deg) scaleX(1.3);
+  }
+}
+
+@keyframes snipSlash2 {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(145deg) scaleX(0.4);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-10px, 10px) rotate(145deg) scaleX(1.3);
   }
 }
 
@@ -21,14 +213,10 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: #0b0d10;
+  background: #07080b;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #272f3d;
+  background: linear-gradient(180deg, #e8b04b, #92631c);
   border-radius: 999px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #3a4559;
 }
