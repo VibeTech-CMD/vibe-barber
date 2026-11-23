@@ -1,0 +1,18 @@
+{
+  "name": "Vibe Barber — Agendamento de Barbearia",
+  "short_name": "Vibe Barber",
+  "description": "Agende seu corte com sinal via Pix, repasse de horários e trocas entre clientes.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#0B0D10",
+  "theme_color": "#0B0D10",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./assets/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
