@@ -43,13 +43,12 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
     );
 
   return (
-    <div className="min-h-screen flex flex-col bg-vibe-grid text-ink relative">
+    <div className="min-h-screen flex flex-col text-ink relative">
       {/* Custom Interactive Scissors Mouse Cursor (Desktop) */}
       <ScissorCursor />
 
       {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-obsidian/80 backdrop-blur-xl border-b border-white/[0.09]">
-        <div className="barber-pole-strip w-full" aria-hidden="true" />
+      <header className="sticky top-0 z-40 bg-obsidian/90 backdrop-blur-md border-b border-white/[0.08]">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
           <Link to="/" className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-gold-light to-gold-dark flex items-center justify-center text-deep font-extrabold shadow-md shadow-gold/20 shrink-0">

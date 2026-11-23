@@ -140,16 +140,39 @@ export function BookingPage() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
-      <div className="mb-6">
-        <Badge tone="gold">
-          <Sparkles className="w-3.5 h-3.5" /> Agendamento Inteligente
-        </Badge>
-        <h1 className="text-2xl sm:text-3xl font-extrabold text-ink mt-2">
-          Reserve seu horário na {state.barbershop.name}
-        </h1>
-        <p className="text-sm text-ink-muted mt-1">
-          Escolha um ou mais serviços, selecione seu barbeiro e garanta sua vaga com sinal via Pix.
-        </p>
+      <div className="mb-6 space-y-4">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-ink">
+            Agendar na {state.barbershop.name}
+          </h1>
+          <p className="text-sm text-ink-muted mt-1">
+            Siga os passos abaixo na ordem — leva menos de 1 minuto.
+          </p>
+        </div>
+
+        {/* Barra de progresso anti-erro */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+          <div className="rounded-xl px-3 py-2 border border-confirm/40 bg-confirm/10 text-green-300 font-semibold flex items-center gap-1.5">
+            <Check className="w-3.5 h-3.5 shrink-0" /> 1. Serviço ({selectedServiceIds.length})
+          </div>
+          <div className="rounded-xl px-3 py-2 border border-confirm/40 bg-confirm/10 text-green-300 font-semibold flex items-center gap-1.5">
+            <Check className="w-3.5 h-3.5 shrink-0" /> 2. Barbeiro
+          </div>
+          <div
+            className={cn(
+              'rounded-xl px-3 py-2 border font-semibold flex items-center gap-1.5',
+              selectedSlot
+                ? 'border-confirm/40 bg-confirm/10 text-green-300'
+                : 'border-gold/45 bg-gold/10 text-gold-light'
+            )}
+          >
+            {selectedSlot ? <Check className="w-3.5 h-3.5 shrink-0" /> : <span>→</span>}{' '}
+            3. Horário {selectedSlot ? `(${selectedSlot.startTime})` : '(falta escolher)'}
+          </div>
+          <div className="rounded-xl px-3 py-2 border border-white/10 bg-surface/60 text-ink-muted font-semibold">
+            4. Confirmar Pix
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
@@ -443,7 +466,8 @@ export function BookingPage() {
               className="w-full"
               disabled={!selectedSlot}
             >
-              <ShieldCheck className="w-4 h-4" /> Confirmar e Pagar Sinal Pix
+              <ShieldCheck className="w-4 h-4" />{' '}
+              {selectedSlot ? 'Confirmar e Pagar Sinal Pix' : 'Escolha um horário acima primeiro'}
             </Button>
 
             <p className="text-[11px] text-ink-dim leading-relaxed">
