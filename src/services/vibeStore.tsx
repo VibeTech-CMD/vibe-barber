@@ -4,19 +4,43 @@ import type {
   AppointmentStatus,
   Barber,
   Barbershop,
+  MasterNotification,
   Profile,
   Service,
   ShopSettings,
   VibeBarberState,
   WaitlistPeriod,
 } from '@/types/domain';
-import { addDays, minutesToTime, timeToMinutes, toISODate } from '@/config/brand';
+import { addDays, formatBRL, minutesToTime, timeToMinutes, toISODate } from '@/config/brand';
 import {
   calculateServicesTotals,
   hasConflict,
 } from '@/features/availability/engine';
 
-const STORAGE_KEY = 'vibe_barber_v1_state';
+const STORAGE_KEY = 'vibe_barber_v2_state';
+
+export const DEMO_MASTER_CREDENTIALS = {
+  email: 'dono@vibebarber.com.br',
+  password: 'vibe123',
+};
+
+export function normalizeCpf(value: string): string {
+  return value.replace(/\D/g, '').slice(0, 11);
+}
+
+export function formatCpf(value: string): string {
+  const digits = normalizeCpf(value);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
+}
+
+export function maskClientName(fullName: string): string {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length <= 1) return parts[0] || 'Cliente';
+  return `${parts[0]} ${parts[1][0].toUpperCase()}.`;
+}
 
 function defaultWorkingHours() {
   return [
@@ -69,13 +93,32 @@ export function createSeedState(): VibeBarberState {
       pixKey: 'pagamentos@vibebarber.com.br',
     },
     profiles: [
-      { id: 'usr_lucas', fullName: 'Lucas Mendes', phone: '(11) 98412-3310', email: 'lucas@email.com', role: 'client', createdAt: nowIso },
-      { id: 'usr_rafael', fullName: 'Rafael Souza', phone: '(11) 97220-8841', email: 'rafael@email.com', role: 'client', createdAt: nowIso },
-      { id: 'usr_matheus', fullName: 'Matheus Oliveira', phone: '(11) 99104-5529', email: 'matheus@email.com', role: 'client', createdAt: nowIso },
+      { id: 'usr_lucas', fullName: 'Lucas Mendes', cpf: '11111111111', phone: '(11) 98412-3310', email: 'lucas@email.com', role: 'client', createdAt: nowIso },
+      { id: 'usr_rafael', fullName: 'Rafael Souza', cpf: '22222222222', phone: '(11) 97220-8841', email: 'rafael@email.com', role: 'client', createdAt: nowIso },
+      { id: 'usr_matheus', fullName: 'Matheus Oliveira', cpf: '33333333333', phone: '(11) 99104-5529', email: 'matheus@email.com', role: 'client', createdAt: nowIso },
       { id: 'usr_barber_carlos', fullName: 'Carlos "Navalha"', phone: '(11) 98800-1101', email: 'carlos@vibebarber.com.br', role: 'barber', barberId: 'brb_carlos', createdAt: nowIso },
-      { id: 'usr_admin', fullName: 'Cleisson (Admin)', phone: '(11) 99450-1020', email: 'admin@vibebarber.com.br', role: 'admin', createdAt: nowIso },
+      { id: 'usr_admin', fullName: 'Dono da Barbearia (Master)', phone: '(11) 99450-1020', email: DEMO_MASTER_CREDENTIALS.email, role: 'admin', createdAt: nowIso },
     ],
     activeProfileId: 'usr_lucas',
+    masterAuthenticated: false,
+    masterNotifications: [
+      {
+        id: 'ntf_1',
+        title: 'Sinal Pix confirmado • #VB-4821',
+        message: 'Lucas Mendes garantiu hoje às 10:00 (Combo Vibe) com sinal de R$ 10,00.',
+        tone: 'confirm',
+        read: false,
+        createdAt: nowIso,
+      },
+      {
+        id: 'ntf_2',
+        title: 'Vaga disponível no Mural de Repasse',
+        message: 'Horário de hoje às 17:00 com Carlos "Navalha" foi colocado para repasse.',
+        tone: 'info',
+        read: false,
+        createdAt: nowIso,
+      },
+    ],
     barbers: [
       {
         id: 'brb_carlos',
@@ -123,7 +166,7 @@ export function createSeedState(): VibeBarberState {
       { id: 'srv_6', name: 'Pezinho & Acabamento', description: 'Manutenção rápida de contorno e nuca entre cortes.', category: 'Acabamento', durationMinutes: 15, priceCents: 2000, bufferMinutes: 0, depositCents: 500, active: true },
     ],
     timeBlocks: [
-      { id: 'blk_1', barberId: 'brb_carlos', date: d0, startTime: '13:00', endTime: '14:00', reason: 'Reunião interna', createdBy: 'Cleisson (Admin)', createdAt: nowIso },
+      { id: 'blk_1', barberId: 'brb_carlos', date: d0, startTime: '13:00', endTime: '14:00', reason: 'Reunião interna', createdBy: 'Master', createdAt: nowIso },
     ],
     appointments: [
       {
@@ -131,6 +174,7 @@ export function createSeedState(): VibeBarberState {
         appointmentCode: 'VB-4821',
         customerProfileId: 'usr_lucas',
         customerName: 'Lucas Mendes',
+        customerCpf: '11111111111',
         customerPhone: '(11) 98412-3310',
         barberId: 'brb_carlos',
         date: d0,
@@ -147,6 +191,7 @@ export function createSeedState(): VibeBarberState {
         appointmentCode: 'VB-4822',
         customerProfileId: 'usr_rafael',
         customerName: 'Rafael Souza',
+        customerCpf: '22222222222',
         customerPhone: '(11) 97220-8841',
         barberId: 'brb_carlos',
         date: d0,
@@ -163,6 +208,7 @@ export function createSeedState(): VibeBarberState {
         appointmentCode: 'VB-4825',
         customerProfileId: 'usr_matheus',
         customerName: 'Matheus Oliveira',
+        customerCpf: '33333333333',
         customerPhone: '(11) 99104-5529',
         barberId: 'brb_carlos',
         date: d0,
@@ -179,6 +225,7 @@ export function createSeedState(): VibeBarberState {
         appointmentCode: 'VB-4830',
         customerProfileId: 'usr_rafael',
         customerName: 'Rafael Souza',
+        customerCpf: '22222222222',
         customerPhone: '(11) 97220-8841',
         barberId: 'brb_diego',
         date: d1,
@@ -195,6 +242,7 @@ export function createSeedState(): VibeBarberState {
         appointmentCode: 'VB-4810',
         customerProfileId: 'usr_lucas',
         customerName: 'Lucas Mendes',
+        customerCpf: '11111111111',
         customerPhone: '(11) 98412-3310',
         barberId: 'brb_thiago',
         date: d2,
@@ -264,6 +312,7 @@ function loadInitialState(): VibeBarberState {
     if (!raw) return createSeedState();
     const parsed = JSON.parse(raw) as VibeBarberState;
     if (!parsed?.barbershop || !Array.isArray(parsed.appointments)) return createSeedState();
+    if (!Array.isArray(parsed.masterNotifications)) parsed.masterNotifications = [];
     return parsed;
   } catch {
     return createSeedState();
@@ -285,17 +334,31 @@ interface ActionResult<T = undefined> {
   data?: T;
 }
 
+export interface CpfLookupResult {
+  found: boolean;
+  profileId?: string;
+  maskedName?: string;
+}
+
 interface VibeStoreValue {
   state: VibeBarberState;
   activeProfile: Profile;
+  unreadNotificationsCount: number;
   setActiveProfile: (profileId: string) => void;
+  lookupClientByCpf: (rawCpf: string) => CpfLookupResult;
+  identifyClientByCpf: (rawCpf: string) => ActionResult<{ maskedName: string }>;
+  loginMaster: (email: string, password: string) => ActionResult;
+  logoutMaster: () => void;
+  markNotificationRead: (notificationId: string) => void;
+  markAllNotificationsRead: () => void;
   createBooking: (input: {
     serviceIds: string[];
     barberId: string;
     date: string;
     startTime: string;
-    customerName: string;
-    customerPhone: string;
+    customerCpf?: string;
+    customerName?: string;
+    customerPhone?: string;
     customerEmail?: string;
   }) => ActionResult<Appointment>;
   confirmDemoPayment: (appointmentId: string) => ActionResult<Appointment>;
@@ -322,7 +385,6 @@ interface VibeStoreValue {
   toggleBarberActive: (barberId: string) => void;
   updateBarbershop: (partial: Partial<Barbershop>) => void;
   updateSettings: (partial: Partial<ShopSettings>) => void;
-  updateProfile: (partial: Partial<Pick<Profile, 'fullName' | 'phone' | 'email'>>) => void;
   resetDemoData: () => void;
 }
 
@@ -342,6 +404,11 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
   const activeProfile = useMemo(
     () => state.profiles.find((p) => p.id === state.activeProfileId) || state.profiles[0],
     [state.profiles, state.activeProfileId]
+  );
+
+  const unreadNotificationsCount = useMemo(
+    () => state.masterNotifications.filter((n) => !n.read).length,
+    [state.masterNotifications]
   );
 
   const pushLog = (
@@ -364,12 +431,95 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
     ].slice(0, 60);
   };
 
+  const pushMasterNotification = (
+    draft: VibeBarberState,
+    title: string,
+    message: string,
+    tone: MasterNotification['tone'] = 'gold'
+  ) => {
+    draft.masterNotifications = [
+      {
+        id: `ntf_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        title,
+        message,
+        tone,
+        read: false,
+        createdAt: new Date().toISOString(),
+      },
+      ...draft.masterNotifications,
+    ].slice(0, 40);
+  };
+
   const value: VibeStoreValue = {
     state,
     activeProfile,
+    unreadNotificationsCount,
 
     setActiveProfile(profileId) {
       setState((prev) => ({ ...prev, activeProfileId: profileId }));
+    },
+
+    lookupClientByCpf(rawCpf) {
+      const digits = normalizeCpf(rawCpf);
+      if (digits.length !== 11) return { found: false };
+      const match = state.profiles.find((p) => p.role === 'client' && p.cpf === digits);
+      if (!match) return { found: false };
+      return {
+        found: true,
+        profileId: match.id,
+        maskedName: maskClientName(match.fullName),
+      };
+    },
+
+    identifyClientByCpf(rawCpf) {
+      const digits = normalizeCpf(rawCpf);
+      if (digits.length !== 11) {
+        return { ok: false, error: 'Digite um CPF válido com 11 números.' };
+      }
+      const match = state.profiles.find((p) => p.role === 'client' && p.cpf === digits);
+      if (!match) {
+        return {
+          ok: false,
+          error: 'CPF ainda não encontrado. Faça seu primeiro agendamento para cadastrar automaticamente.',
+        };
+      }
+      setState((prev) => ({ ...prev, activeProfileId: match.id }));
+      return { ok: true, data: { maskedName: maskClientName(match.fullName) } };
+    },
+
+    loginMaster(email, password) {
+      const cleanEmail = email.trim().toLowerCase();
+      if (
+        cleanEmail === DEMO_MASTER_CREDENTIALS.email.toLowerCase() &&
+        password === DEMO_MASTER_CREDENTIALS.password
+      ) {
+        setState((prev) => ({ ...prev, masterAuthenticated: true }));
+        return { ok: true };
+      }
+      return {
+        ok: false,
+        error: 'E-mail ou senha incorretos. Use o acesso de demonstração abaixo.',
+      };
+    },
+
+    logoutMaster() {
+      setState((prev) => ({ ...prev, masterAuthenticated: false }));
+    },
+
+    markNotificationRead(notificationId) {
+      setState((prev) => ({
+        ...prev,
+        masterNotifications: prev.masterNotifications.map((n) =>
+          n.id === notificationId ? { ...n, read: true } : n
+        ),
+      }));
+    },
+
+    markAllNotificationsRead() {
+      setState((prev) => ({
+        ...prev,
+        masterNotifications: prev.masterNotifications.map((n) => ({ ...n, read: true })),
+      }));
     },
 
     createBooking(input) {
@@ -383,7 +533,6 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
       const totals = calculateServicesTotals(selectedServices, state.settings);
       const endTime = minutesToTime(timeToMinutes(input.startTime) + totals.totalDurationMinutes);
 
-      // Concurrency / double-booking guard
       if (
         hasConflict({
           barberId: input.barberId,
@@ -401,13 +550,43 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
       }
 
       const nowIso = new Date().toISOString();
+      const digitsCpf = normalizeCpf(input.customerCpf || '');
+
+      // Reuse existing profile by CPF (zero login & zero duplicates!)
+      let resolvedProfile = digitsCpf.length === 11
+        ? state.profiles.find((p) => p.role === 'client' && p.cpf === digitsCpf)
+        : undefined;
+
+      let createdProfile: Profile | null = null;
+      if (!resolvedProfile) {
+        const cleanName = (input.customerName || '').trim();
+        const cleanPhone = (input.customerPhone || '').trim();
+        if (cleanName.length < 2) {
+          return { ok: false, error: 'Informe seu nome completo para o primeiro cadastro.' };
+        }
+        if (cleanPhone.length < 10) {
+          return { ok: false, error: 'Informe seu WhatsApp com DDD.' };
+        }
+        createdProfile = {
+          id: `usr_${Date.now()}`,
+          fullName: cleanName,
+          cpf: digitsCpf.length === 11 ? digitsCpf : undefined,
+          phone: cleanPhone,
+          email: input.customerEmail?.trim() || undefined,
+          role: 'client',
+          createdAt: nowIso,
+        };
+        resolvedProfile = createdProfile;
+      }
+
       const needsPayment = state.settings.requireDeposit && totals.depositCents > 0;
       const newAppt: Appointment = {
         id: `apt_${Date.now()}`,
         appointmentCode: generateUniqueCode(state.appointments),
-        customerProfileId: activeProfile.id,
-        customerName: input.customerName.trim() || activeProfile.fullName,
-        customerPhone: input.customerPhone.trim() || activeProfile.phone,
+        customerProfileId: resolvedProfile.id,
+        customerName: resolvedProfile.fullName,
+        customerCpf: resolvedProfile.cpf,
+        customerPhone: resolvedProfile.phone,
         barberId: input.barberId,
         date: input.date,
         startTime: input.startTime,
@@ -427,9 +606,14 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
         createdAt: nowIso,
       };
 
+      const barberName =
+        state.barbers.find((b) => b.id === input.barberId)?.displayName || 'Barbeiro';
+
       setState((prev) => {
         const next: VibeBarberState = {
           ...prev,
+          profiles: createdProfile ? [...prev.profiles, createdProfile] : prev.profiles,
+          activeProfileId: resolvedProfile!.id,
           appointments: [newAppt, ...prev.appointments],
           payments: needsPayment
             ? [
@@ -448,6 +632,7 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
               ]
             : prev.payments,
           activityLogs: [...prev.activityLogs],
+          masterNotifications: [...prev.masterNotifications],
         };
         pushLog(
           next,
@@ -455,6 +640,12 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
           'appointment_created',
           `Reserva ${newAppt.appointmentCode} criada para ${newAppt.date} às ${newAppt.startTime}.`,
           newAppt.id
+        );
+        pushMasterNotification(
+          next,
+          `Nova pré-reserva • ${newAppt.appointmentCode}`,
+          `${newAppt.customerName} reservou ${newAppt.date} às ${newAppt.startTime} com ${barberName} (aguardando Pix de ${formatBRL(newAppt.depositCents)}).`,
+          'gold'
         );
         return next;
       });
@@ -482,13 +673,20 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
               : p
           ),
           activityLogs: [...prev.activityLogs],
+          masterNotifications: [...prev.masterNotifications],
         };
         pushLog(
           next,
           target.customerName,
           'payment_demo_confirmed',
-          `Sinal demonstrativo confirmado para ${target.appointmentCode}.`,
+          `Sinal Pix confirmado para ${target.appointmentCode}.`,
           target.id
+        );
+        pushMasterNotification(
+          next,
+          `Sinal Pix confirmado! • ${target.appointmentCode}`,
+          `${target.customerName} confirmou ${formatBRL(target.depositCents)} para ${target.date} às ${target.startTime}.`,
+          'confirm'
         );
         return next;
       });
@@ -551,6 +749,7 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
               : s
           ),
           activityLogs: [...prev.activityLogs],
+          masterNotifications: [...prev.masterNotifications],
         };
         pushLog(
           next,
@@ -558,6 +757,12 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
           'appointment_cancelled',
           `Reserva ${target.appointmentCode} cancelada (${reason || 'sem motivo informado'}).`,
           target.id
+        );
+        pushMasterNotification(
+          next,
+          `Horário cancelado • ${target.appointmentCode}`,
+          `${target.customerName} cancelou ${target.date} às ${target.startTime}. Vaga liberada na agenda.`,
+          'alert'
         );
         return next;
       });
@@ -592,6 +797,7 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
             ...prev.transfers,
           ],
           activityLogs: [...prev.activityLogs],
+          masterNotifications: [...prev.masterNotifications],
         };
         pushLog(
           next,
@@ -599,6 +805,12 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
           'transfer_offered',
           `Vaga de ${target.date} às ${target.startTime} disponibilizada no mural de repasse.`,
           target.id
+        );
+        pushMasterNotification(
+          next,
+          'Horário colocado em repasse',
+          `A vaga de ${target.date} às ${target.startTime} entrou no Mural de Repasses.`,
+          'info'
         );
         return next;
       });
@@ -631,6 +843,7 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
         appointmentCode: generateUniqueCode(state.appointments),
         customerProfileId: activeProfile.id,
         customerName: activeProfile.fullName,
+        customerCpf: activeProfile.cpf,
         customerPhone: activeProfile.phone,
         status: 'confirmed',
         createdAt: nowIso,
@@ -667,6 +880,7 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
             ),
           ],
           activityLogs: [...prev.activityLogs],
+          masterNotifications: [...prev.masterNotifications],
         };
         pushLog(
           next,
@@ -674,6 +888,12 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
           'transfer_completed',
           `Repasse concluído! Vaga de ${newAppt.date} às ${newAppt.startTime} assumida (${newAppt.appointmentCode}).`,
           newAppt.id
+        );
+        pushMasterNotification(
+          next,
+          `Repasse concluído! • ${newAppt.appointmentCode}`,
+          `${newAppt.customerName} assumiu a vaga de ${newAppt.date} às ${newAppt.startTime}. Agenda 100% mantida!`,
+          'confirm'
         );
         return next;
       });
@@ -818,12 +1038,19 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
             return s;
           }),
           activityLogs: [...prev.activityLogs],
+          masterNotifications: [...prev.masterNotifications],
         };
         pushLog(
           next,
           activeProfile.fullName,
           'swap_accepted',
           `Troca atômica concluída entre ${a.appointmentCode} e ${b.appointmentCode} mantendo os sinais pagos.`
+        );
+        pushMasterNotification(
+          next,
+          'Troca de horários concluída',
+          `Os horários ${a.appointmentCode} e ${b.appointmentCode} foram trocados automaticamente na agenda.`,
+          'info'
         );
         return next;
       });
@@ -843,7 +1070,7 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
         };
         pushLog(
           next,
-          activeProfile.fullName,
+          'Dono (Master)',
           `status_${status}`,
           `Reserva ${target.appointmentCode} (${target.customerName}) atualizada para "${status}".`,
           target.id
@@ -864,7 +1091,7 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
             {
               id: `blk_${Date.now()}`,
               ...input,
-              createdBy: activeProfile.fullName,
+              createdBy: 'Dono (Master)',
               createdAt: new Date().toISOString(),
             },
             ...prev.timeBlocks,
@@ -873,7 +1100,7 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
         };
         pushLog(
           next,
-          activeProfile.fullName,
+          'Dono (Master)',
           'time_blocked',
           `Bloqueio criado em ${input.date} (${input.startTime}–${input.endTime}): ${input.reason}.`
         );
@@ -897,12 +1124,11 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
         const services = isEdit
           ? prev.services.map((s) => (s.id === id ? updatedService : s))
           : [...prev.services, updatedService];
-        // Make new service available to active barbers automatically
         const barbers = isEdit
           ? prev.barbers
           : prev.barbers.map((b) => ({ ...b, serviceIds: [...b.serviceIds, id] }));
         const next: VibeBarberState = { ...prev, services, barbers, activityLogs: [...prev.activityLogs] };
-        pushLog(next, activeProfile.fullName, 'service_saved', `Serviço "${updatedService.name}" ${isEdit ? 'atualizado' : 'cadastrado'}.`);
+        pushLog(next, 'Dono (Master)', 'service_saved', `Serviço "${updatedService.name}" ${isEdit ? 'atualizado' : 'cadastrado'}.`);
         return next;
       });
     },
@@ -950,7 +1176,7 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
             ];
 
         const next: VibeBarberState = { ...prev, barbers, activityLogs: [...prev.activityLogs] };
-        pushLog(next, activeProfile.fullName, 'barber_saved', `Barbeiro "${input.displayName}" ${isEdit ? 'atualizado' : 'cadastrado'}.`);
+        pushLog(next, 'Dono (Master)', 'barber_saved', `Barbeiro "${input.displayName}" ${isEdit ? 'atualizado' : 'cadastrado'}.`);
         return next;
       });
     },
@@ -970,15 +1196,6 @@ export function VibeStoreProvider({ children }: { children: React.ReactNode }) {
 
     updateSettings(partial) {
       setState((prev) => ({ ...prev, settings: { ...prev.settings, ...partial } }));
-    },
-
-    updateProfile(partial) {
-      setState((prev) => ({
-        ...prev,
-        profiles: prev.profiles.map((p) =>
-          p.id === prev.activeProfileId ? { ...p, ...partial } : p
-        ),
-      }));
     },
 
     resetDemoData() {

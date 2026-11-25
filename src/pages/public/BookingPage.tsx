@@ -1,39 +1,29 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Check, Clock, ShieldCheck, Sparkles } from 'lucide-react';
-import { useVibeStore } from '@/services/vibeStore';
+import { Check, CheckCircle2, Clock, ShieldCheck, UserCheck } from 'lucide-react';
+import { formatCpf, normalizeCpf, useVibeStore } from '@/services/vibeStore';
 import { formatBRL, formatDateBR, getUpcomingDates } from '@/config/brand';
 import {
   calculateServicesTotals,
   computeAvailableSlots,
 } from '@/features/availability/engine';
 import type { Appointment } from '@/types/domain';
-import { Badge, Button, Card, Input, useToast } from '@/components/ui/primitives';
+import { Button, Card, Input, useToast } from '@/components/ui/primitives';
 import { PixCheckoutModal } from '@/components/booking/PixCheckoutModal';
 import { cn } from '@/lib/utils/cn';
 
-const clientSchema = z.object({
-  customerName: z.string().min(2, 'Informe seu nome completo'),
-  customerPhone: z
-    .string()
-    .min(10, 'Informe um telefone/WhatsApp válido com DDD'),
-  customerEmail: z.string().email('E-mail inválido').optional().or(z.literal('')),
-});
-
-type ClientFormValues = z.infer<typeof clientSchema>;
-
 export function BookingPage() {
-  const { state, activeProfile, createBooking } = useVibeStore();
+  const { state, lookupClientByCpf, createBooking } = useVibeStore();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   const activeServices = state.services.filter((s) => s.active);
   const activeBarbers = state.barbers.filter((b) => b.active);
-  const dates = useMemo(() => getUpcomingDates(state.settings.maxFutureDays || 14), [state.settings.maxFutureDays]);
+  const dates = useMemo(
+    () => getUpcomingDates(state.settings.maxFutureDays || 14),
+    [state.settings.maxFutureDays]
+  );
 
   const initialService = searchParams.get('service');
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>(() =>
@@ -48,31 +38,17 @@ export function BookingPage() {
   const [selectedSlot, setSelectedSlot] = useState<{ startTime: string; barberId: string } | null>(null);
   const [pendingAppt, setPendingAppt] = useState<Appointment | null>(null);
 
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<ClientFormValues>({
-    resolver: zodResolver(clientSchema),
-    defaultValues: {
-      customerName: activeProfile.fullName,
-      customerPhone: activeProfile.phone,
-      customerEmail: activeProfile.email || '',
-    },
-  });
+  // Zero-login CPF identification state
+  const [cpfInput, setCpfInput] = useState('');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [formError, setFormError] = useState('');
 
-  useEffect(() => {
-    reset({
-      customerName: activeProfile.fullName,
-      customerPhone: activeProfile.phone,
-      customerEmail: activeProfile.email || '',
-    });
-  }, [activeProfile, reset]);
+  const cpfDigits = normalizeCpf(cpfInput);
+  const cpfLookup = useMemo(() => lookupClientByCpf(cpfDigits), [cpfDigits, lookupClientByCpf]);
 
   const selectedServices = activeServices.filter((s) => selectedServiceIds.includes(s.id));
   const totals = calculateServicesTotals(selectedServices, state.settings);
-
   const selectedDateObj = dates.find((d) => d.iso === selectedDate) || dates[0];
 
   const availableSlots = useMemo(() => {
@@ -108,10 +84,29 @@ export function BookingPage() {
     );
   };
 
-  const onSubmit = (formValues: ClientFormValues) => {
+  const handleConfirmBooking = (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError('');
+
     if (!selectedSlot) {
-      toast('Selecione um horário disponível para continuar.', 'error');
+      toast('Escolha um horário disponível primeiro.', 'error');
       return;
+    }
+
+    if (cpfDigits.length !== 11) {
+      setFormError('Digite os 11 números do seu CPF para identificarmos seu cadastro.');
+      return;
+    }
+
+    if (!cpfLookup.found) {
+      if (customerName.trim().length < 2) {
+        setFormError('Como é sua primeira vez, informe seu nome completo.');
+        return;
+      }
+      if (customerPhone.replace(/\D/g, '').length < 10) {
+        setFormError('Informe seu WhatsApp com DDD.');
+        return;
+      }
     }
 
     const res = createBooking({
@@ -119,12 +114,13 @@ export function BookingPage() {
       barberId: selectedSlot.barberId,
       date: selectedDate,
       startTime: selectedSlot.startTime,
-      customerName: formValues.customerName,
-      customerPhone: formValues.customerPhone,
-      customerEmail: formValues.customerEmail,
+      customerCpf: cpfDigits,
+      customerName: cpfLookup.found ? undefined : customerName,
+      customerPhone: cpfLookup.found ? undefined : customerPhone,
     });
 
     if (!res.ok || !res.data) {
+      setFormError(res.error || 'Erro ao criar reserva.');
       toast(res.error || 'Erro ao criar reserva.', 'error');
       return;
     }
@@ -138,6 +134,8 @@ export function BookingPage() {
     }
   };
 
+  const isClientIdentified = cpfLookup.found || (cpfDigits.length === 11 && customerName.trim().length >= 2 && customerPhone.replace(/\D/g, '').length >= 10);
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-6">
       <div className="mb-6 space-y-4">
@@ -146,7 +144,7 @@ export function BookingPage() {
             Agendar na {state.barbershop.name}
           </h1>
           <p className="text-sm text-ink-muted mt-1">
-            Siga os passos abaixo na ordem — leva menos de 1 minuto.
+            Sem precisar criar senha — informe apenas seu CPF no final para confirmar.
           </p>
         </div>
 
@@ -169,14 +167,20 @@ export function BookingPage() {
             {selectedSlot ? <Check className="w-3.5 h-3.5 shrink-0" /> : <span>→</span>}{' '}
             3. Horário {selectedSlot ? `(${selectedSlot.startTime})` : '(falta escolher)'}
           </div>
-          <div className="rounded-xl px-3 py-2 border border-white/10 bg-surface/60 text-ink-muted font-semibold">
-            4. Confirmar Pix
+          <div
+            className={cn(
+              'rounded-xl px-3 py-2 border font-semibold flex items-center gap-1.5',
+              isClientIdentified
+                ? 'border-confirm/40 bg-confirm/10 text-green-300'
+                : 'border-white/10 bg-surface/60 text-ink-muted'
+            )}
+          >
+            {isClientIdentified && <Check className="w-3.5 h-3.5 shrink-0" />} 4. CPF &amp; Pix
           </div>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-        {/* Left 2 Columns: Steps 1 to 5 */}
         <div className="lg:col-span-2 space-y-6">
           {/* Step 1: Services */}
           <Card className="space-y-4">
@@ -219,7 +223,7 @@ export function BookingPage() {
 
           {/* Step 2: Barber */}
           <Card className="space-y-4">
-            <h2 className="text-base font-bold text-ink">2. Escolha o profissional</h2>
+            <h2 className="text-base font-bold text-ink">2. Escolha o barbeiro</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
                 type="button"
@@ -281,7 +285,7 @@ export function BookingPage() {
           {/* Step 3: Date */}
           <Card className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-ink">3. Escolha a data</h2>
+              <h2 className="text-base font-bold text-ink">3. Escolha o dia</h2>
               <span className="text-xs text-gold-light font-semibold">{formatDateBR(selectedDate)}</span>
             </div>
             <div className="flex gap-2 overflow-x-auto pb-2">
@@ -327,7 +331,7 @@ export function BookingPage() {
           {/* Step 4: Time Slots */}
           <Card className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-ink">4. Horários disponíveis</h2>
+              <h2 className="text-base font-bold text-ink">4. Horários livres</h2>
               <span className="text-xs text-ink-muted inline-flex items-center gap-1">
                 <Clock className="w-3.5 h-3.5" /> Duração: {totals.totalDurationMinutes} min
               </span>
@@ -337,7 +341,7 @@ export function BookingPage() {
               <div className="rounded-xl bg-deep/70 border border-dashed border-white/15 p-6 text-center space-y-2">
                 <p className="text-sm font-semibold text-ink">Nenhuma vaga livre nesta data</p>
                 <p className="text-xs text-ink-muted">
-                  Tente outro dia, escolha &quot;Qualquer disponível&quot; ou confira o Mural de Repasses e Fila de Espera.
+                  Escolha outro dia ou veja se alguém liberou uma vaga no Mural de Repasses.
                 </p>
                 <Button size="sm" variant="info" onClick={() => navigate('/cliente/repasses')}>
                   Ver Repasses &amp; Fila de Espera
@@ -369,43 +373,93 @@ export function BookingPage() {
             )}
           </Card>
 
-          {/* Step 5: Client Details */}
+          {/* Step 5: Zero-Login CPF Identification */}
           <Card className="space-y-4">
-            <h2 className="text-base font-bold text-ink">5. Seus dados para confirmação</h2>
-            <form id="bookingForm" onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <h2 className="text-base font-bold text-ink">5. Seu CPF (sem precisar criar senha)</h2>
+              <p className="text-xs text-ink-muted mt-0.5">
+                Se você já cortou aqui antes, basta digitar o CPF que já reconhecemos você na hora.
+              </p>
+            </div>
+
+            <form id="bookingForm" onSubmit={handleConfirmBooking} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-ink-muted mb-1.5" htmlFor="customerName">
-                  Nome completo *
+                <label className="block text-xs font-semibold text-ink-muted mb-1.5" htmlFor="customerCpf">
+                  CPF *
                 </label>
-                <Input id="customerName" {...register('customerName')} placeholder="Seu nome" />
-                {errors.customerName && (
-                  <p className="text-xs text-red-400 mt-1">{errors.customerName.message}</p>
-                )}
+                <Input
+                  id="customerCpf"
+                  inputMode="numeric"
+                  value={cpfInput}
+                  onChange={(e) => {
+                    setCpfInput(formatCpf(e.target.value));
+                    setFormError('');
+                  }}
+                  placeholder="000.000.000-00"
+                  maxLength={14}
+                />
+                <p className="text-[11px] text-ink-dim mt-1">
+                  Dica para testar o reconhecimento automático: digite <span className="font-mono text-gold-light">111.111.111-11</span>
+                </p>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-ink-muted mb-1.5" htmlFor="customerPhone">
-                  WhatsApp / Telefone *
-                </label>
-                <Input id="customerPhone" {...register('customerPhone')} placeholder="(11) 99999-9999" />
-                {errors.customerPhone && (
-                  <p className="text-xs text-red-400 mt-1">{errors.customerPhone.message}</p>
-                )}
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-semibold text-ink-muted mb-1.5" htmlFor="customerEmail">
-                  E-mail (opcional)
-                </label>
-                <Input id="customerEmail" type="email" {...register('customerEmail')} placeholder="voce@email.com" />
-                {errors.customerEmail && (
-                  <p className="text-xs text-red-400 mt-1">{errors.customerEmail.message}</p>
-                )}
-              </div>
+
+              {cpfLookup.found ? (
+                <div className="rounded-xl bg-confirm/10 border border-confirm/35 p-4 flex items-start gap-3">
+                  <UserCheck className="w-5 h-5 text-confirm shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <div className="text-sm font-bold text-green-300">
+                      Olá, {cpfLookup.maskedName}! Cadastro encontrado automaticamente.
+                    </div>
+                    <p className="text-xs text-ink-muted">
+                      Você não precisa digitar nome nem telefone novamente (dados protegidos pela LGPD). Só clicar em confirmar!
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                cpfDigits.length === 11 && (
+                  <div className="space-y-3 rounded-xl bg-deep/70 border border-white/10 p-4">
+                    <div className="text-xs font-semibold text-gold-light flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" /> Primeira vez aqui? Preencha só desta vez — nas próximas basta o CPF!
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-ink-muted mb-1" htmlFor="customerName">
+                          Nome completo *
+                        </label>
+                        <Input
+                          id="customerName"
+                          value={customerName}
+                          onChange={(e) => setCustomerName(e.target.value)}
+                          placeholder="Seu nome"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-ink-muted mb-1" htmlFor="customerPhone">
+                          WhatsApp com DDD *
+                        </label>
+                        <Input
+                          id="customerPhone"
+                          value={customerPhone}
+                          onChange={(e) => setCustomerPhone(e.target.value)}
+                          placeholder="(11) 99999-9999"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
+
+              {formError && (
+                <div className="rounded-xl bg-alert/15 border border-alert/35 px-3 py-2 text-xs text-red-300">
+                  {formError}
+                </div>
+              )}
             </form>
           </Card>
         </div>
 
         {/* Right Sticky Summary */}
-        <div className="lg:sticky lg:top-28">
+        <div className="lg:sticky lg:top-24">
           <Card className="space-y-4 border-gold/25">
             <h3 className="text-lg font-extrabold text-ink">Resumo da Reserva</h3>
 
@@ -430,15 +484,13 @@ export function BookingPage() {
               <div className="flex justify-between text-ink-muted">
                 <span>Horário</span>
                 <strong className="text-gold-light font-mono">
-                  {selectedSlot ? selectedSlot.startTime : 'Selecione acima'}
+                  {selectedSlot ? selectedSlot.startTime : 'Escolha acima'}
                 </strong>
               </div>
-              {selectedSlot && (
+              {cpfLookup.found && (
                 <div className="flex justify-between text-ink-muted">
-                  <span>Barbeiro</span>
-                  <strong className="text-ink">
-                    {activeBarbers.find((b) => b.id === selectedSlot.barberId)?.displayName}
-                  </strong>
+                  <span>Cliente</span>
+                  <strong className="text-confirm">{cpfLookup.maskedName}</strong>
                 </div>
               )}
             </div>
@@ -449,7 +501,7 @@ export function BookingPage() {
                 <span className="font-mono">{formatBRL(totals.totalPriceCents)}</span>
               </div>
               <div className="flex justify-between text-ink-muted">
-                <span>Restante na cadeira</span>
+                <span>Restante na barbearia</span>
                 <span className="font-mono">{formatBRL(totals.remainingCents)}</span>
               </div>
               <div className="flex justify-between pt-2 border-t border-white/10 font-bold text-base">
@@ -467,7 +519,11 @@ export function BookingPage() {
               disabled={!selectedSlot}
             >
               <ShieldCheck className="w-4 h-4" />{' '}
-              {selectedSlot ? 'Confirmar e Pagar Sinal Pix' : 'Escolha um horário acima primeiro'}
+              {!selectedSlot
+                ? 'Escolha um horário acima primeiro'
+                : cpfDigits.length !== 11
+                  ? 'Digite seu CPF para confirmar'
+                  : 'Confirmar e Pagar Sinal Pix'}
             </Button>
 
             <p className="text-[11px] text-ink-dim leading-relaxed">

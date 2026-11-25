@@ -47,10 +47,20 @@ export interface Barbershop {
 export interface Profile {
   id: string;
   fullName: string;
+  cpf?: string; // 11 digits normalized
   phone: string;
   email?: string;
   role: UserRole;
   barberId?: string;
+  createdAt: string;
+}
+
+export interface MasterNotification {
+  id: string;
+  title: string;
+  message: string;
+  tone: 'gold' | 'confirm' | 'info' | 'alert';
+  read: boolean;
   createdAt: string;
 }
 
@@ -111,6 +121,7 @@ export interface Appointment {
   appointmentCode: string;
   customerProfileId: string;
   customerName: string;
+  customerCpf?: string;
   customerPhone: string;
   barberId: string;
   date: string; // YYYY-MM-DD
@@ -204,6 +215,8 @@ export interface VibeBarberState {
   settings: ShopSettings;
   profiles: Profile[];
   activeProfileId: string;
+  masterAuthenticated: boolean;
+  masterNotifications: MasterNotification[];
   barbers: Barber[];
   services: Service[];
   timeBlocks: TimeBlock[];

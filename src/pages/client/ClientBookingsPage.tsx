@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeftRight, CalendarPlus, Repeat, XCircle } from 'lucide-react';
-import { useVibeStore } from '@/services/vibeStore';
+import { ArrowLeftRight, CalendarPlus, Repeat, Search, XCircle } from 'lucide-react';
+import { formatCpf, maskClientName, useVibeStore } from '@/services/vibeStore';
 import { formatBRL, formatDateBR } from '@/config/brand';
 import type { Appointment, AppointmentStatus } from '@/types/domain';
 import {
@@ -38,6 +38,7 @@ export function ClientBookingsPage() {
   const {
     state,
     activeProfile,
+    identifyClientByCpf,
     cancelAppointment,
     offerTransfer,
     cancelTransfer,
@@ -46,6 +47,7 @@ export function ClientBookingsPage() {
   } = useVibeStore();
   const { toast } = useToast();
 
+  const [cpfSearch, setCpfSearch] = useState(activeProfile.cpf ? formatCpf(activeProfile.cpf) : '');
   const [pixAppt, setPixAppt] = useState<Appointment | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason] = useState('');
@@ -110,9 +112,9 @@ export function ClientBookingsPage() {
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-8">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-extrabold text-ink">Meus Agendamentos</h1>
+          <h1 className="text-2xl font-extrabold text-ink">Meus Horários</h1>
           <p className="text-sm text-ink-muted">
-            Titular ativo: <strong className="text-ink">{activeProfile.fullName}</strong>
+            Consulte suas reservas usando apenas seu CPF — sem precisar de senha.
           </p>
         </div>
         <Link to="/agendar">
@@ -121,6 +123,41 @@ export function ClientBookingsPage() {
           </Button>
         </Link>
       </div>
+
+      {/* Zero-login CPF lookup bar */}
+      <Card className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+        <div className="flex-1 max-w-sm">
+          <label htmlFor="lookupCpfInput" className="block text-xs font-semibold text-ink-muted mb-1">
+            Consultar por CPF (ex: 111.111.111-11 ou 222.222.222-22)
+          </label>
+          <Input
+            id="lookupCpfInput"
+            inputMode="numeric"
+            value={cpfSearch}
+            onChange={(e) => setCpfSearch(formatCpf(e.target.value))}
+            placeholder="000.000.000-00"
+            maxLength={14}
+          />
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              const r = identifyClientByCpf(cpfSearch);
+              if (r.ok && r.data) {
+                toast(`Horários de ${r.data.maskedName} carregados!`, 'success');
+              } else {
+                toast(r.error || 'CPF não encontrado.', 'error');
+              }
+            }}
+          >
+            <Search className="w-4 h-4" /> Buscar reservas
+          </Button>
+          <span className="text-xs text-ink-muted">
+            Mostrando: <strong className="text-gold-light">{maskClientName(activeProfile.fullName)}</strong>
+          </span>
+        </div>
+      </Card>
 
       {/* Received Swaps */}
       {receivedSwaps.length > 0 && (
